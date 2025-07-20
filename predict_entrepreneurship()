@@ -1,0 +1,130 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.svm import SVC
+from sklearn.metrics import accuracy_score
+import warnings
+warnings.filterwarnings('ignore')
+
+# Load the dataset
+df = pd.read_csv("/education_career_success.csv")
+
+# Drop ID column
+df.drop(columns=['Student_ID'], inplace=True)
+print(df.shape)
+print(df.dtypes)
+print(df.head())
+print(df.describe())
+print(df.isna().sum())
+print((df.isna().mean() * 100).round(2))
+
+
+
+# Convert target variable to binary
+df['Entrepreneurship'] = df['Entrepreneurship'].map({'Yes': 1, 'No': 0})
+
+# Check missing values (there are none, but good practice)
+print("\nMissing values:\n", df.isnull().sum())
+
+# EDA Plots
+sns.countplot(data=df, x='Entrepreneurship', palette='Set2')
+plt.title('Entrepreneurship Distribution')
+plt.show()
+
+# Histograms for key numerical features
+df[['Age', 'High_School_GPA', 'University_GPA', 'Job_Offers', 'Starting_Salary']].hist(bins=20, figsize=(12, 6), color='lightblue')
+plt.suptitle('Key Numeric Distributions')
+plt.show()
+
+# Categorical columns for analysis
+cat_features = ['Gender', 'Field_of_Study', 'Current_Job_Level']
+plt.figure(figsize=(15, 15))
+for i, col in enumerate(cat_features, 1):
+    plt.subplot(2, 2, i)
+    sns.countplot(data=df, x=col, hue='Entrepreneurship')
+    plt.title(f'{col} vs Entrepreneurship')
+    plt.xticks(rotation=45)
+plt.tight_layout()
+plt.show()
+
+# Encode categorical variables
+cat_cols = df.select_dtypes(include='object').columns
+df = pd.get_dummies(df, columns=cat_cols, drop_first=True)
+
+# Split features and target
+X = df.drop('Entrepreneurship', axis=1)
+y = df['Entrepreneurship']
+
+# Scale features
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)
+
+# Split data
+X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
+
+# Train models
+lr = LogisticRegression()
+lr.fit(X_train, y_train)
+lr_preds = lr.predict(X_test)
+
+rf = RandomForestClassifier()
+rf.fit(X_train, y_train)
+rf_preds = rf.predict(X_test)
+
+svm = SVC()
+svm.fit(X_train, y_train)
+svm_preds = svm.predict(X_test)
+
+# Accuracy scores
+print("Logistic Regression Accuracy:", accuracy_score(y_test, lr_preds))
+print("Random Forest Accuracy:", accuracy_score(y_test, rf_preds))
+print("SVM Accuracy:", accuracy_score(y_test, svm_preds))
+
+# Grid search for Random Forest
+params = {'n_estimators': [100, 150, 200], 'max_depth': [None, 5, 10]}
+grid_rf = GridSearchCV(RandomForestClassifier(), params, cv=5)
+grid_rf.fit(X_train, y_train)
+
+print("Best Parameters:", grid_rf.best_params_)
+best_rf = grid_rf.best_estimator_
+best_rf_preds = best_rf.predict(X_test)
+print("Tuned Accuracy:", accuracy_score(y_test, best_rf_preds))
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay, classification_report
+
+# Logistic Regression Confusion Matrix
+cm_lr = confusion_matrix(y_test, lr_preds)
+print("\n🔹 Logistic Regression Classification Report:\n", classification_report(y_test, lr_preds))
+ConfusionMatrixDisplay(confusion_matrix=cm_lr, display_labels=["No", "Yes"]).plot(cmap='Blues')
+plt.title("Logistic Regression - Confusion Matrix")
+plt.show()
+
+# Random Forest Confusion Matrix
+cm_rf = confusion_matrix(y_test, rf_preds)
+print("\n🔹 Random Forest Classification Report:\n", classification_report(y_test, rf_preds))
+ConfusionMatrixDisplay(confusion_matrix=cm_rf, display_labels=["No", "Yes"]).plot(cmap='Greens')
+plt.title("Random Forest - Confusion Matrix")
+plt.show()
+
+# SVM Confusion Matrix
+cm_svm = confusion_matrix(y_test, svm_preds)
+print("\n🔹 SVM Classification Report:\n", classification_report(y_test, svm_preds))
+ConfusionMatrixDisplay(confusion_matrix=cm_svm, display_labels=["No", "Yes"]).plot(cmap='Purples')
+plt.title("SVM - Confusion Matrix")
+plt.show()
+
+# Best Random Forest (Tuned) Confusion Matrix
+cm_best_rf = confusion_matrix(y_test, best_rf_preds)
+print("\n🔹 Best Tuned RF Classification Report:\n", classification_report(y_test, best_rf_preds))
+ConfusionMatrixDisplay(confusion_matrix=cm_best_rf, display_labels=["No", "Yes"]).plot(cmap='Oranges')
+plt.title("Best Tuned Random Forest - Confusion Matrix")
+plt.show()
+
+# Sample prediction (you must match columns from df)
+new_data_sample = pd.DataFrame([X.iloc[0]])  # example using first row's features
+new_data_scaled = scaler.transform(new_data_sample)
+print("Entrepreneur:", "Yes" if best_rf.predict(new_data_scaled)[0] == 1 else "No")
